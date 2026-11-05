@@ -1,0 +1,12 @@
+{
+  "name": "pm-stack",
+  "owner": { "name": "Michael Williams" },
+  "description": "Claude Code skills for product managers.",
+  "plugins": [
+    {
+      "name": "pm-stack",
+      "source": "./plugin",
+      "description": "Claude Code skills for product managers: explore many live UI variants on one board, pin feedback on exact elements, and end with a written decision."
+    }
+  ]
+}

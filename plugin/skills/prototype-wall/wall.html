@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en" data-board="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wall</title>
+<!--
+  The wall: every variant from wall.json, live, on one pan-and-zoom board.
+  Harness chrome, not a design under review: copy this file verbatim, never restyle it with the
+  project's tokens. It must be served by the project's own dev server (public/ or static/) so the
+  frames are same-origin; that is what lets right-click name the element under the cursor.
+-->
+<style>
+  :root {
+    --board: #ececec;
+    --ink: #0a0a0a;
+    --muted: #6b6b6b;
+    --killed-title: #c4c4c4;
+    --killed-name: #a3a3a3;
+    --frame-ring: rgba(0, 0, 0, 0.08);
+    --frame-shadow: rgba(0, 0, 0, 0.12);
+    --chrome: rgba(14, 14, 14, 0.86);
+    --chrome-ink: #f5f5f5;
+    --chrome-muted: #a1a1a1;
+    --chrome-line: rgba(255, 255, 255, 0.1);
+    --chrome-hover: rgba(255, 255, 255, 0.1);
+    --accent: #2563eb;
+    --danger: #f87171;
+    --ease: cubic-bezier(0.32, 0.72, 0, 1);
+    --label: 120px; /* keep in step with LABEL in the script */
+    --title-px: 40px; /* title size on screen at 100% zoom */
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  /* Board background, like Storybook's Backgrounds: only the canvas changes, never the variants. */
+  :root[data-board="dark"] {
+    --board: #141414;
+    --ink: #f2f2f2;
+    --muted: #8c8c8c;
+    --killed-title: #474747;
+    --killed-name: #5c5c5c;
+    --frame-ring: rgba(255, 255, 255, 0.1);
+    --frame-shadow: rgba(0, 0, 0, 0.5);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--board); color: var(--ink); }
+  button { font: inherit; color: inherit; }
+
+  #board { position: fixed; inset: 0; overflow: hidden; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; }
+  #board:active { cursor: grabbing; }
+  #world { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+  #empty { position: fixed; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 14px; text-align: center; text-wrap: pretty; padding: 24px; }
+
+  /* Frames move with transform so a reflow slides each one to its new spot on the GPU. */
+  .frame { position: absolute; top: 0; left: 0; transition: transform 300ms var(--ease); }
+  .frame:hover { z-index: 10; }
+  .frame.has-draft { z-index: 20; }
+  .label-row { position: relative; height: var(--label); }
+  /* Titles zoom at half the board's rate (see TITLE_DAMP): they grow like a heading but never vanish. */
+  .label { position: absolute; bottom: 0; left: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-bottom: 0.4em; font-size: calc(var(--title-px) * var(--title-scale, 1)); line-height: 1.1; letter-spacing: -0.02em; color: var(--muted); }
+  .label b { margin-right: 0.175em; color: var(--ink); font-weight: 650; } /* on top of the word space; em keeps it in step with the title size */
+  .frame.killed .label { color: var(--killed-title); } /* removed: the whole title greys out, the name is struck through */
+  .frame.killed .label b { color: var(--killed-name); text-decoration: line-through; }
+  .screen { position: relative; overflow: hidden; border-radius: 3px; background: #fff; box-shadow: 0 0 0 1px var(--frame-ring), 0 10px 30px var(--frame-shadow); }
+  .frame.killed .screen { opacity: 0.3; filter: grayscale(1); }
+  .frame.live .screen { box-shadow: 0 0 0 4px var(--accent), 0 10px 30px var(--frame-shadow); }
+  .screen iframe { display: block; border: 0; }
+  /* Shield: a frame takes no input until entered, so drags pan the board. */
+  .shield { position: absolute; inset: 0; }
+  .frame.live .shield { display: none; }
+
+  /* Notes live in frame pixels, below the label row; pins and the note box counter-scale. */
+  .notes { position: absolute; left: 0; top: var(--label); }
+  .pin, .notebox { position: absolute; scale: calc(1 / var(--z, 1)); transform-origin: 0 0; }
+  .pin { width: 0; height: 0; padding: 0; border: 0; background: none; cursor: pointer; }
+  /* Pins and the composer are 0×0 boxes at the click point, with a dot centered on it. */
+  /* Bullseye: accent center, white gap, accent ring, thin white edge so it shows on dark content. */
+  .pin-dot { position: absolute; left: -6px; top: -6px; width: 12px; height: 12px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 0 4px #fff, 0 0 0 6px var(--accent), 0 0 0 7px #fff, 0 2px 6px 4px rgba(0, 0, 0, 0.2); }
+  .pin-dot::before { content: ""; position: absolute; inset: -14px; border-radius: 999px; } /* the box is 12px; this makes a 40px hit area */
+  .pin:focus-visible { outline: none; }
+  .pin:focus-visible .pin-dot { outline: 2px solid var(--accent); outline-offset: 10px; }
+  .pin-tip { display: none; position: absolute; top: -12px; left: 26px; width: 240px; padding: 6px 8px; border-radius: 6px; background: var(--chrome); color: var(--chrome-ink); font-size: 12px; line-height: 1.4; text-align: start; white-space: pre-wrap; overflow-wrap: break-word; pointer-events: none; }
+  .pin:hover .pin-tip { display: block; }
+
+  [data-chrome] { position: fixed; z-index: 100; color: var(--chrome-ink); background: var(--chrome); -webkit-backdrop-filter: blur(12px) saturate(1.4); backdrop-filter: blur(12px) saturate(1.4); box-shadow: inset 0 0 0 1px var(--chrome-line), 0 8px 24px rgba(0, 0, 0, 0.24); font-size: 13px; }
+  /* Composer: a pin at the click point with a one-line bubble beside it. */
+  .notebox { width: 0; height: 0; cursor: auto; }
+  .notebox .bubble { position: absolute; left: 26px; top: -18px; display: flex; align-items: flex-end; gap: 2px; width: 320px; padding: 4px 4px 4px 14px; border-radius: 18px; color: var(--chrome-ink); background: #161616; box-shadow: inset 0 0 0 1px var(--chrome-line), 0 12px 32px rgba(0, 0, 0, 0.3); }
+  .notebox .bubble:focus-within { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28), 0 12px 32px rgba(0, 0, 0, 0.3); }
+  .notebox textarea { flex: 1; height: 28px; max-height: 124px; padding: 4px 0; overflow-y: auto; resize: none; border: 0; outline: none; background: none; color: inherit; font: inherit; font-size: 14px; line-height: 20px; }
+  .notebox textarea::placeholder { color: var(--chrome-muted); }
+  .notebox .send, .notebox .delete { display: grid; flex-shrink: 0; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; cursor: pointer; }
+  .notebox .send { background: var(--chrome-ink); color: #0a0a0a; }
+  .notebox .send:disabled { opacity: 0.25; cursor: default; }
+  .notebox .delete { background: none; color: var(--chrome-muted); }
+  .notebox .delete:hover { color: var(--danger); }
+
+  .btn { height: 28px; padding: 0 12px; border: 0; border-radius: 999px; background: transparent; cursor: pointer; white-space: nowrap; }
+  .btn:hover { background: var(--chrome-hover); }
+  .btn.primary { background: var(--chrome-ink); color: #0a0a0a; font-weight: 500; }
+  .btn.primary:hover { background: #fff; }
+  .btn:focus-visible, .menu button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  #zoom { min-width: 52px; padding: 0 8px; border-radius: 8px; color: var(--chrome-muted); font-variant-numeric: tabular-nums; }
+  #zoom:hover { color: var(--chrome-ink); }
+
+  #panel { top: 16px; right: 16px; width: 280px; border-radius: 14px; }
+  #panel header { display: flex; align-items: center; gap: 4px; padding: 6px 8px 6px 16px; border-bottom: 1px solid var(--chrome-line); font-weight: 600; }
+  #wallTitle { flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  #panel footer { display: flex; gap: 4px; padding: 16px; border-top: 1px solid var(--chrome-line); }
+  #panel footer #copy { flex: 1; margin-right: 4px; border-radius: 8px; }
+  .icon-btn { display: grid; place-items: center; width: 28px; padding: 0; border-radius: 8px; color: var(--chrome-muted); }
+  .icon-btn:hover { color: var(--chrome-ink); }
+  #collapse { width: 28px; padding: 0; border-radius: 8px; } /* square, so the glyph lands on the content edge */
+  #panel .body { display: flex; flex-direction: column; gap: 16px; padding: 16px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 28px; } /* every control row is 28px */
+  .col { display: flex; flex-direction: column; gap: 8px; }
+  output { color: var(--chrome-muted); font-variant-numeric: tabular-nums; }
+  .slider { display: flex; align-items: center; gap: 10px; color: var(--chrome-muted); }
+  .slider svg { flex-shrink: 0; }
+  .seg { display: flex; padding: 2px; border-radius: 8px; background: rgba(255, 255, 255, 0.06); }
+  .seg button { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--chrome-muted); cursor: pointer; }
+  .seg button[aria-pressed="true"] { background: rgba(255, 255, 255, 0.16); color: var(--chrome-ink); }
+  .seg button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .swatch { width: 10px; height: 10px; border-radius: 999px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3); }
+  input[type="range"] { width: 100%; margin: 0; accent-color: var(--chrome-ink); }
+  .size { display: grid; grid-template-columns: 1fr 60px auto 60px auto; align-items: center; gap: 6px; }
+  .size .remove { width: 28px; height: 28px; padding: 0; border-radius: 8px; color: var(--chrome-muted); }
+  .size .remove:disabled { display: none; }
+  .size:has(.remove:disabled) { grid-template-columns: 1fr 60px auto 60px; } /* a lone size has no ✕; its inputs reach the right edge */
+  #addSize { height: 28px; padding: 0 6px; border: 1px dashed var(--chrome-line); border-radius: 8px; background: none; color: var(--chrome-muted); font: inherit; cursor: pointer; }
+  #addSize option { background: #161616; color: var(--chrome-ink); }
+  .size input[type="number"] { width: 100%; height: 28px; padding: 0 6px; border: 1px solid var(--chrome-line); border-radius: 8px; background: rgba(255, 255, 255, 0.06); color: inherit; font: inherit; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .size .x { color: var(--chrome-muted); }
+  input[type="checkbox"].switch { appearance: none; position: relative; width: 30px; height: 18px; margin: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.18); cursor: pointer; transition: background 150ms ease; }
+  input[type="checkbox"].switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 999px; background: #fff; transition: translate 150ms ease; }
+  input[type="checkbox"].switch:checked { background: var(--accent); }
+  input[type="checkbox"].switch:checked::after { translate: 12px 0; }
+  input[type="checkbox"].switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #panelOpen { top: 16px; right: 16px; width: 36px; height: 36px; border: 0; border-radius: 999px; cursor: pointer; }
+  /* The panel grows from and shrinks into the corner where the open button sits. Exit runs faster. */
+  #panel { transform-origin: top right; transition: opacity 220ms cubic-bezier(0.32, 0.72, 0, 1), scale 220ms cubic-bezier(0.32, 0.72, 0, 1), display 220ms allow-discrete; }
+  #panel[hidden] { opacity: 0; scale: 0.95; transition-duration: 150ms; transition-timing-function: ease-in; }
+  /* Only after a click, so the panel doesn't animate in on page load. */
+  @starting-style { #panel[data-animate] { opacity: 0; scale: 0.95; } }
+
+  .menu { min-width: 180px; padding: 4px; border-radius: 10px; }
+  .menu button { display: block; width: 100%; padding: 7px 10px; border: 0; border-radius: 6px; background: none; text-align: start; cursor: pointer; }
+  .menu button:hover { background: var(--chrome-hover); }
+  .menu button.danger { color: var(--danger); }
+
+  /* Hover colors ease; buttons give a little on press. */
+  .btn, .menu button, .seg button, .notebox .send, .notebox .delete, #panelOpen { transition: background-color 150ms ease-out, color 150ms ease-out, scale 150ms ease-out; }
+  .btn:active, .notebox .send:active, #panelOpen:active { scale: 0.96; }
+
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) {
+    .frame, input[type="checkbox"].switch, input[type="checkbox"].switch::after, #panel,
+    .btn, .menu button, .seg button, .notebox .send, .notebox .delete, #panelOpen { transition: none; }
+  }
+</style>
+</head>
+<body>
+<div id="board"><div id="world"></div></div>
+<div id="empty" hidden></div>
+
+<aside id="panel" data-chrome aria-label="Display">
+  <header>
+    <span id="wallTitle">Wall</span>
+    <button class="btn" id="zoom" title="Fit everything (F)" aria-label="Zoom level; click to fit everything"></button>
+    <button class="btn" id="collapse" aria-label="Collapse panel">⇥</button>
+  </header>
+  <div class="body">
+    <!-- One slider covers both directions: 1 per row is one column, the maximum is one row. -->
+    <div class="col">
+      <div class="slider">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-label="One column" role="img"><title>One column</title><circle cx="7" cy="2" r="1.6"/><circle cx="7" cy="7" r="1.6"/><circle cx="7" cy="12" r="1.6"/></svg>
+        <input type="range" id="per" min="1" aria-label="Variants per row">
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-label="One row" role="img"><title>One row</title><circle cx="2" cy="7" r="1.6"/><circle cx="7" cy="7" r="1.6"/><circle cx="12" cy="7" r="1.6"/></svg>
+      </div>
+    </div>
+    <div class="col">
+      <div class="col" id="sizes"></div>
+      <select id="addSize" aria-label="Add a window size"></select>
+    </div>
+    <div class="row">
+      <span>Background</span>
+      <div class="seg" role="group" aria-label="Background">
+        <button data-bg="light"><span class="swatch" style="background: #ececec"></span>Light</button>
+        <button data-bg="dark"><span class="swatch" style="background: #141414"></span>Dark</button>
+      </div>
+    </div>
+    <label class="row"><span>Show hidden</span><input type="checkbox" class="switch" id="showHidden"></label>
+  </div>
+  <footer>
+    <button class="btn primary" id="copy">Copy notes</button>
+    <button class="btn icon-btn" id="clear" title="Clear notes" aria-label="Clear notes" hidden>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+    </button>
+    <button class="btn icon-btn" id="reset" title="Reset all: display settings and hidden variants" aria-label="Reset all">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+    </button>
+  </footer>
+</aside>
+<button id="panelOpen" data-chrome aria-label="Open display panel" hidden>☰</button>
+
+
+<div id="menu" class="menu" data-chrome role="menu" hidden></div>
+
+<script>
+(() => {
+  const MANIFEST = new URLSearchParams(location.search).get("manifest") ?? "wall.json"
+  const LABEL = 120 // title row height in board pixels; matches --label
+  // On screen a title is --title-px × zoom^(1 − TITLE_DAMP): 0 scales fully with the board, 1 never changes.
+  const TITLE_DAMP = 0.5
+  const MOVE = "transform 300ms var(--ease)" // camera and frames share one timing: a reflow reads as one motion
+  const GAP = 160
+  // Common viewport sizes, offered by "+ Add size".
+  const PRESETS = [
+    { label: "Mobile", w: 390, h: 844 },
+    { label: "Tablet", w: 768, h: 1024 },
+    { label: "Laptop", w: 1280, h: 800 },
+    { label: "Desktop", w: 1440, h: 900 },
+    { label: "Wide", w: 1920, h: 1080 },
+  ]
+  // perLine null = as square as possible (see perLine()); a slider choice lasts until reload.
+  const DEFAULTS = { perLine: null, hideKilled: true, background: "dark", sizes: [{ label: "Desktop", w: 1440, h: 900 }] }
+
+  const $ = (id) => document.getElementById(id)
+  const board = $("board"), world = $("world"), menuEl = $("menu"), panel = $("panel")
+  const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches
+
+  // localStorage can throw (private mode, blocked storage); the wall still works, it just forgets on reload.
+  const KEY = `wall:${location.pathname}:${MANIFEST}:`
+  const store = {
+    get(k, fallback) { try { return JSON.parse(localStorage.getItem(KEY + k)) ?? fallback } catch { return fallback } },
+    set(k, v) { try { localStorage.setItem(KEY + k, JSON.stringify(v)) } catch {} },
+  }
+
+  function h(tag, attrs = {}, ...kids) {
+    const el = document.createElement(tag)
+    for (const [k, v] of Object.entries(attrs)) {
+      if (k.startsWith("on")) el.addEventListener(k.slice(2), v)
+      else if (k === "class") el.className = v
+      else el.setAttribute(k, v)
+    }
+    el.append(...kids.filter((k) => k != null))
+    return el
+  }
+
+  let variants = []
+  let title = "Wall"
+  let settings = null
+  let kills = store.get("kills", {})
+  let notes = store.get("notes", [])
+  let frames = []
+  let focused = null
+  let hovered = null
+  let draft = null
+  let noteBox = null
+  const nodes = new Map() // frame key → element; kept across renders so iframes never reload on reflow
+  const cam = { x: 0, y: 0, z: 0.2 }
+  let prevCam = null
+
+  // ---------- layout ----------
+  // Each variant is one cell holding its sizes side by side. Cells fill a row of perLine, then wrap.
+  // Rounds stack below each other.
+  function layout(vs, s, per) {
+    const on = s.sizes
+    if (!on.length) return []
+    const inner = GAP / 2
+    const cellW = on.reduce((sum, z) => sum + z.w, 0) + inner * (on.length - 1)
+    const cellH = LABEL + Math.max(...on.map((z) => z.h))
+    const out = []
+    let offset = 0
+    for (const r of [...new Set(vs.map((v) => v.round ?? 1))].sort((a, b) => a - b)) {
+      const inRound = vs.filter((v) => (v.round ?? 1) === r)
+      inRound.forEach((v, i) => {
+        const line = Math.floor(i / per), pos = i % per
+        let x = pos * (cellW + GAP)
+        const y = line * (cellH + GAP) + offset
+        on.forEach((z, n) => {
+          out.push({ key: `${v.id}:${z.label}`, v, w: z.w, h: z.h, x, y: y + LABEL, size: z.label, labelW: n === 0 ? cellW : 0 })
+          x += z.w + inner
+        })
+      })
+      offset += Math.ceil(inRound.length / per) * (cellH + GAP) + GAP
+    }
+    return out
+  }
+
+  // ---------- camera ----------
+  // Camera moves skip any re-render: write the transform directly, once per animation frame.
+  function apply(animate = false) {
+    world.style.transition = animate && !reduced() ? MOVE : "none"
+    world.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.z})`
+    world.style.setProperty("--z", cam.z)
+    world.style.setProperty("--title-scale", cam.z ** -TITLE_DAMP)
+    $("zoom").textContent = `${Math.round(cam.z * 100)}%`
+  }
+
+  // Hold one GPU layer while moving; drop it when idle so text re-rasterizes crisp at the new zoom.
+  let raf = 0, idle = 0
+  function moved() {
+    world.style.willChange = "transform"
+    clearTimeout(idle)
+    idle = setTimeout(() => (world.style.willChange = "auto"), 150)
+    cancelAnimationFrame(raf)
+    raf = requestAnimationFrame(() => apply())
+  }
+
+  function zoomAt(sx, sy, z) {
+    z = Math.min(Math.max(z, 0.05), 2)
+    cam.x = sx - ((sx - cam.x) / cam.z) * z
+    cam.y = sy - ((sy - cam.y) / cam.z) * z
+    cam.z = z
+    moved()
+  }
+
+  function fitTo(b, maxZ) {
+    // Fit into the space left of the display panel, not under it.
+    const width = innerWidth - (panel.hidden ? 0 : panel.offsetWidth + 32)
+    const height = innerHeight
+    const z = Math.min((width - 80) / b.w, (height - 80) / b.h, maxZ)
+    Object.assign(cam, { z, x: (width - b.w * z) / 2 - b.x * z, y: (height - b.h * z) / 2 - b.y * z })
+    apply(true)
+  }
+
+  function fitAll() {
+    if (!frames.length) return
+    fitTo({ x: 0, y: 0, w: Math.max(...frames.map((f) => f.x + f.w)), h: Math.max(...frames.map((f) => f.y + f.h)) }, 1)
+  }
+
+  function focus(f) {
+    prevCam ??= { ...cam }
+    focused = f.key
+    syncLive()
+    fitTo({ x: f.x, y: f.y - LABEL, w: f.w, h: f.h + LABEL }, 1)
+  }
+
+  function unfocus() {
+    focused = null
+    syncLive()
+    if (prevCam) {
+      Object.assign(cam, prevCam)
+      prevCam = null
+      apply(true)
+    }
+  }
+
+  function syncLive() {
+    for (const [k, el] of nodes) el.classList.toggle("live", k === focused)
+  }
+
+  // ---------- frames ----------
+  function makeFrame() {
+    const el = h("div", { class: "frame" })
+    const label = h("div", { class: "label" })
+    const iframe = h("iframe", { loading: "eager" })
+    const shield = h("div", {
+      class: "shield",
+      oncontextmenu: (e) => {
+        e.preventDefault()
+        const r = shield.getBoundingClientRect(), s = r.width / el.f.w
+        openMenu(el, (e.clientX - r.left) / s, (e.clientY - r.top) / s, e.clientX, e.clientY)
+      },
+    })
+    const notesLayer = h("div", { class: "notes" })
+    el.append(h("div", { class: "label-row" }, label), h("div", { class: "screen" }, iframe, shield), notesLayer)
+    el.addEventListener("pointerenter", () => (hovered = el.f.v.id))
+    el.addEventListener("pointerleave", () => (hovered = null))
+    iframe.addEventListener("load", () => hookFrame(el))
+    el.parts = { label, iframe, notesLayer, screen: el.querySelector(".screen") }
+    return el
+  }
+
+  // A live frame swallows its own keys and right-clicks, so listen inside it too (same-origin only).
+  function hookFrame(el) {
+    try {
+      const win = el.parts.iframe.contentWindow
+      win.addEventListener("keydown", (e) => e.key === "Escape" && escape())
+      win.addEventListener("pointerdown", () => { closeMenu(); commitDraft() })
+      win.addEventListener("contextmenu", (e) => {
+        e.preventDefault()
+        const r = el.parts.iframe.getBoundingClientRect(), s = r.width / el.f.w
+        openMenu(el, e.clientX, e.clientY, r.left + e.clientX * s, r.top + e.clientY * s)
+      })
+    } catch {
+      // Cross-origin frame: the board menu still works from the shield, without element names.
+    }
+  }
+
+  function updateFrame(el, f) {
+    el.f = f
+    const { label, iframe, screen } = el.parts
+    el.style.transform = `translate(${f.x}px, ${f.y - LABEL}px)`
+    el.style.width = `${f.w}px`
+    screen.style.width = `${f.w}px`
+    screen.style.height = `${f.h}px`
+    if (iframe.width !== String(f.w)) iframe.width = f.w
+    if (iframe.height !== String(f.h)) iframe.height = f.h
+    if (iframe.getAttribute("src") !== f.v.url) iframe.src = f.v.url
+    iframe.title = `${f.v.name}, ${f.size}`
+    const killed = f.v.id in kills
+    el.classList.toggle("killed", killed)
+    el.classList.toggle("live", f.key === focused)
+    label.hidden = !f.labelW
+    label.style.width = `${f.labelW}px`
+    label.replaceChildren(h("b", {}, f.v.name), " ", f.v.axis ?? "")
+    label.title = `${f.v.name} ${f.v.axis ?? ""}`.trim() // the label truncates
+  }
+
+  function render() {
+    if (!settings) return
+    const vs = settings.hideKilled ? variants.filter((v) => !(v.id in kills)) : variants
+    frames = layout(vs, settings, perLine())
+    const seen = new Set()
+    let changed = false
+    for (const f of frames) {
+      let el = nodes.get(f.key)
+      if (!el) {
+        el = makeFrame()
+        nodes.set(f.key, el)
+        world.append(el)
+        changed = true
+      }
+      updateFrame(el, f)
+      seen.add(f.key)
+    }
+    for (const [k, el] of nodes) if (!seen.has(k)) { el.remove(); nodes.delete(k); changed = true }
+    if (focused && !seen.has(focused)) unfocus()
+    if (changed) renderNotes()
+    $("empty").hidden = frames.length > 0
+    if (!frames.length) $("empty").textContent = variants.length ? "No window sizes are on. Switch one on in the Display panel." : "wall.json has no variants yet."
+  }
+
+  // ---------- notes ----------
+  const LANDMARKS = "article, header, nav, aside, main, section, footer, li, form, [data-slot=card]"
+  const TARGETS = `button, a, input, textarea, select, label, h1, h2, h3, h4, p, img, svg, [role], [aria-label], [data-slot], ${LANDMARKS}`
+  const clip = (s, n) => (s.length > n ? `${s.slice(0, n - 1)}…` : s)
+
+  function name(el, limit) {
+    const tag = el.tagName.toLowerCase()
+    const slot = el.getAttribute("data-slot")
+    const text = el.textContent?.replace(/\s+/g, " ").trim() ?? ""
+    // Containers go by their heading ("Who to follow"); small elements by their own text.
+    const heading = el.querySelector("h1, h2, h3, h4, [data-slot$=title]")?.textContent?.trim()
+    const label = el.getAttribute("aria-label") ?? el.getAttribute("placeholder") ?? (text.length <= 120 ? text : heading ?? "")
+    return `${tag}${slot && slot !== tag ? `[${slot}]` : ""}${label ? ` "${clip(label, limit)}"` : ""}`
+  }
+
+  // A readable path an agent can grep for: the landmarks around the element, then the element itself.
+  function describe(el) {
+    if (!el || el.tagName === "HTML" || el.tagName === "BODY") return "frame background"
+    const hit = el.closest(TARGETS) ?? el
+    const chain = []
+    for (let p = hit.parentElement; p && p.tagName !== "BODY" && chain.length < 3; p = p.parentElement) {
+      if (p.matches(LANDMARKS)) chain.unshift(name(p, 24))
+    }
+    // Several "Follow" buttons? Say which one, in document order.
+    const twins = [...hit.ownerDocument.querySelectorAll(hit.tagName)].filter((e) => e.textContent === hit.textContent)
+    const nth = twins.length > 1 ? ` (${twins.indexOf(hit) + 1} of ${twins.length})` : ""
+    return [...chain, name(hit, 48) + nth].join(" › ")
+  }
+
+  function saveNotes(next) {
+    notes = next
+    store.set("notes", notes)
+    renderNotes()
+    syncCopy()
+  }
+
+  function pin(n, i) {
+    return h("button", {
+      class: "pin",
+      style: `left:${n.x}px;top:${n.y}px`,
+      "aria-label": `Note ${i}: ${n.text}`,
+      onpointerdown: (e) => e.stopPropagation(),
+      onclick: () => openDraft({ ...n }),
+    }, h("span", { class: "pin-dot" }), h("span", { class: "pin-tip" }, n.text))
+  }
+
+  function renderNotes() {
+    for (const el of nodes.values()) {
+      const layer = el.parts.notesLayer
+      layer.replaceChildren()
+      notes.forEach((n, i) => n.variant === el.f.v.id && n.size === el.f.size && n.id !== draft?.id && layer.append(pin(n, i + 1)))
+      const mine = draft && draft.variant === el.f.v.id && draft.size === el.f.size
+      el.classList.toggle("has-draft", !!mine)
+      if (mine) layer.append(noteBox)
+    }
+    noteBox?.querySelector("textarea").focus({ preventScroll: true })
+  }
+
+  // Clicking away from an open note keeps what was typed: same as Save (empty new notes just close).
+  function commitDraft() {
+    if (draft) saveDraft(noteBox.querySelector("textarea").value)
+  }
+
+  const svg = (markup) => { const t = document.createElement("template"); t.innerHTML = markup; return t.content.firstChild }
+
+  function openDraft(d) {
+    commitDraft()
+    draft = d
+    const textarea = h("textarea", { rows: "1", placeholder: d.id ? "Edit comment…" : "Add a comment…", "aria-label": "Comment" })
+    textarea.value = d.text
+    const send = h("button", { class: "send", "aria-label": "Save comment", title: "Save (Enter)", onclick: () => saveDraft(textarea.value) },
+      svg(`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`))
+    // Grow with the text up to about six lines, then scroll; the send button stays bottom-right.
+    const sync = () => {
+      send.disabled = !textarea.value.trim()
+      textarea.style.height = "auto"
+      textarea.style.height = `${textarea.scrollHeight}px`
+    }
+    textarea.addEventListener("input", sync)
+    textarea.addEventListener("keydown", (e) => {
+      e.stopPropagation()
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveDraft(textarea.value) }
+      else if (e.key === "Escape") closeDraft()
+    })
+    noteBox = h("div", { class: "notebox", style: `left:${d.x}px;top:${d.y}px`, onpointerdown: (e) => e.stopPropagation() },
+      h("span", { class: "pin-dot", "aria-hidden": "true" }),
+      h("div", { class: "bubble" },
+        textarea,
+        d.id ? h("button", { class: "delete", "aria-label": "Delete comment", title: "Delete", onclick: () => saveDraft("") },
+          svg(`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>`)) : null,
+        send))
+    renderNotes()
+    sync()
+  }
+
+
+  function closeDraft() {
+    draft = null
+    noteBox = null
+    renderNotes()
+  }
+
+  function saveDraft(text) {
+    const t = text.trim()
+    const d = draft
+    draft = null
+    noteBox = null
+    if (d.id) saveNotes(t ? notes.map((n) => (n.id === d.id ? { ...n, text: t } : n)) : notes.filter((n) => n.id !== d.id))
+    else if (t) saveNotes([...notes, { id: crypto.randomUUID(), variant: d.variant, size: d.size, x: d.x, y: d.y, target: d.target, text: t }])
+    else renderNotes()
+  }
+
+  // ---------- menu ----------
+  function openMenu(el, lx, ly, sx, sy) {
+    let target = "frame (element unknown: the frame is cross-origin)"
+    try { target = describe(el.parts.iframe.contentDocument.elementFromPoint(lx, ly)) } catch {}
+    const f = el.f
+    const killed = f.v.id in kills
+    const item = (label, fn, cls) => h("button", { role: "menuitem", class: cls ?? "", onclick: () => { closeMenu(); fn() } }, label)
+    menuEl.replaceChildren(
+      focused === f.key ? item("Deactivate variant", unfocus) : item("Activate variant", () => focus(f)),
+      item("Add comment", () => openDraft({ variant: f.v.id, size: f.size, x: lx, y: ly, target, text: "" })),
+      item(killed ? "Show variant" : "Hide variant", () => toggleKill(f.v.id), killed ? "" : "danger"),
+    )
+    menuEl.hidden = false
+    const r = menuEl.getBoundingClientRect()
+    menuEl.style.left = `${Math.min(sx, innerWidth - r.width - 8)}px`
+    menuEl.style.top = `${Math.min(sy, innerHeight - r.height - 8)}px`
+  }
+
+  function closeMenu() {
+    menuEl.hidden = true
+  }
+
+  function toggleKill(id) {
+    if (id in kills) delete kills[id]
+    else kills[id] = "" // reasons come from notes
+    store.set("kills", kills)
+    render() // the camera stays put: removing is a small edit, not a new view
+  }
+
+  function escape() {
+    if (!menuEl.hidden) closeMenu()
+    else if (draft) closeDraft()
+    else unfocus()
+  }
+
+  // ---------- copy for agent ----------
+  function formatForAgent() {
+    const byId = (id) => variants.find((v) => v.id === id)
+    const dims = (label) => {
+      const s = settings.sizes.find((z) => z.label === label)
+      return s ? ` (${s.w}×${s.h})` : ""
+    }
+    const where = (v) => (v?.file ? ` · ${v.file}` : "")
+    const lines = [`${title} review, ${new Date().toLocaleDateString("en-CA")}.`, ""]
+    if (notes.length) {
+      lines.push("Notes:")
+      notes.forEach((n, i) => {
+        const v = byId(n.variant)
+        lines.push(
+          `${i + 1}. ${v?.name ?? n.variant} · ${n.size}${dims(n.size)}${where(v)}`,
+          `   On: ${n.target}`,
+          `   At: ${Math.round(n.x)}, ${Math.round(n.y)} in the frame`,
+          ...n.text.split("\n").map((t) => `   > ${t}`),
+        )
+      })
+      lines.push("")
+    }
+    const line = (v) => `${v.name}${v.axis ? ` (${v.axis})` : ""}`
+    const removed = variants.filter((v) => v.id in kills)
+    if (removed.length) lines.push(`Removed: ${removed.map(line).join("; ")}`)
+    lines.push(`Kept: ${variants.filter((v) => !(v.id in kills)).map(line).join("; ") || "none"}`)
+    return lines.join("\n")
+  }
+
+  async function copyForAgent() {
+    const text = formatForAgent()
+    try {
+      await navigator.clipboard.writeText(text)
+      $("copy").textContent = "Copied"
+      setTimeout(syncCopy, 1500)
+    } catch {
+      window.prompt("Copy this for the agent:", text)
+    }
+  }
+
+  function syncCopy() {
+    $("copy").textContent = `Copy notes${notes.length ? ` (${notes.length})` : ""}`
+    $("clear").hidden = !notes.length
+  }
+
+  // ---------- panel ----------
+  // refit: false for changes that don't move frames (background), so the view stays put.
+  function setSettings(patch, refit = true) {
+    settings = { ...settings, ...patch }
+    store.set("view", { ...settings, perLine: null }) // the layout slider resets to square on every load
+    syncPanel()
+    render()
+    if (refit) fitAll()
+  }
+
+  const biggestRound = () => Math.max(1, ...[...new Set(variants.map((v) => v.round ?? 1))].map((r) => variants.filter((v) => (v.round ?? 1) === r).length))
+  const maxPerLine = () => Math.max(2, biggestRound())
+  // Default: ⌈√n⌉ per row, the squarest grid, one column wider rather than taller when n isn't square.
+  const perLine = () => settings.perLine ?? Math.ceil(Math.sqrt(biggestRound()))
+
+  function syncPanel() {
+    const max = maxPerLine()
+    const per = Math.min(perLine(), max)
+    $("per").max = max
+    $("per").value = per
+    $("per").setAttribute("aria-valuetext", per === 1 ? "One column" : per === max ? "One row" : `${per} per row`)
+    $("showHidden").checked = !settings.hideKilled
+    document.documentElement.dataset.board = settings.background
+    for (const b of panel.querySelectorAll("[data-bg]")) b.setAttribute("aria-pressed", String(b.dataset.bg === settings.background))
+    const sizes = settings.sizes
+    $("sizes").replaceChildren(...sizes.map((z, i) => {
+      const setSize = (p) => setSettings({ sizes: sizes.map((s, n) => (n === i ? { ...s, ...p } : s)) })
+      const num = (key) => {
+        const input = h("input", { type: "number", min: "200", "aria-label": `${z.label} ${key === "w" ? "width" : "height"}` })
+        input.value = z[key]
+        input.addEventListener("change", () => setSize({ [key]: Math.max(200, Number(input.value) || 200) }))
+        return input
+      }
+      const remove = h("button", { class: "btn remove", "aria-label": `Remove ${z.label}`, onclick: () => setSettings({ sizes: sizes.filter((_, n) => n !== i) }) }, "✕")
+      remove.disabled = sizes.length === 1 // keep at least one size, or the board goes empty
+      return h("div", { class: "size" }, h("span", {}, z.label), num("w"), h("span", { class: "x" }, "×"), num("h"), remove)
+    }))
+    const used = new Set(sizes.map((z) => z.label))
+    $("addSize").replaceChildren(
+      h("option", { value: "" }, "+ Add size"),
+      ...PRESETS.filter((p) => !used.has(p.label)).map((p) => h("option", { value: p.label }, `${p.label}  ${p.w}×${p.h}`)),
+      h("option", { value: "custom" }, "Custom…"),
+    )
+  }
+
+  $("addSize").addEventListener("change", (e) => {
+    const pick = e.target.value
+    if (!pick) return
+    const used = new Set(settings.sizes.map((z) => z.label))
+    let size = PRESETS.find((p) => p.label === pick)
+    if (!size) {
+      // Labels key frames and notes, so each custom size needs its own.
+      let n = 1
+      while (used.has(n === 1 ? "Custom" : `Custom ${n}`)) n++
+      size = { label: n === 1 ? "Custom" : `Custom ${n}`, w: 1024, h: 768 }
+    }
+    setSettings({ sizes: [...settings.sizes, { ...size }] })
+  })
+  $("per").addEventListener("input", (e) => setSettings({ perLine: Number(e.target.value) }))
+  for (const b of panel.querySelectorAll("[data-bg]")) b.addEventListener("click", () => setSettings({ background: b.dataset.bg }, false))
+  $("showHidden").addEventListener("change", (e) => setSettings({ hideKilled: !e.target.checked }))
+  // Reset all: display settings back to defaults and every hidden variant back on the board. Notes stay (Clear notes owns those).
+  $("reset").addEventListener("click", () => {
+    kills = {}
+    store.set("kills", kills)
+    setSettings(structuredClone(DEFAULTS))
+  })
+  $("collapse").addEventListener("click", () => { panel.hidden = true; $("panelOpen").hidden = false })
+  $("panelOpen").addEventListener("click", () => { panel.dataset.animate = ""; panel.hidden = false; $("panelOpen").hidden = true })
+  $("zoom").addEventListener("click", fitAll)
+  $("copy").addEventListener("click", copyForAgent)
+  $("clear").addEventListener("click", () => window.confirm(`Delete all ${notes.length} notes?`) && saveNotes([]))
+
+  // ---------- input ----------
+  // Wheel pans; ⌘/ctrl-wheel zooms around the cursor (Chrome and Firefox report trackpad pinch that way).
+  board.addEventListener("wheel", (e) => {
+    e.preventDefault()
+    closeMenu()
+    if (e.ctrlKey || e.metaKey) zoomAt(e.clientX, e.clientY, cam.z * Math.exp(-Math.max(-30, Math.min(30, e.deltaY)) * 0.01))
+    else { cam.x -= e.deltaX; cam.y -= e.deltaY; moved() }
+  }, { passive: false })
+
+  // Safari reports trackpad pinch as gesture events instead.
+  let gestureZ = 1
+  board.addEventListener("gesturestart", (e) => { e.preventDefault(); gestureZ = cam.z })
+  board.addEventListener("gesturechange", (e) => { e.preventDefault(); zoomAt(e.clientX, e.clientY, gestureZ * e.scale) })
+  document.addEventListener("gesturestart", (e) => e.preventDefault()) // no page zoom over the chrome either
+
+  board.addEventListener("pointerdown", (e) => {
+    closeMenu()
+    commitDraft() // the note box and pins stop their own pointerdowns, so this is always "outside"
+    if (e.button !== 0) return
+    board.setPointerCapture(e.pointerId)
+    let lx = e.clientX, ly = e.clientY
+    const move = (m) => {
+      cam.x += m.clientX - lx
+      cam.y += m.clientY - ly
+      lx = m.clientX
+      ly = m.clientY
+      moved()
+    }
+    const up = () => {
+      board.removeEventListener("pointermove", move)
+      board.removeEventListener("pointerup", up)
+    }
+    board.addEventListener("pointermove", move)
+    board.addEventListener("pointerup", up)
+  })
+  // Pointer capture above retargets click and dblclick to the board, so find what is under the cursor.
+  // With a variant active, a double-click anywhere outside it deactivates it; otherwise it activates the one hit.
+  board.addEventListener("dblclick", (e) => {
+    const hit = document.elementFromPoint(e.clientX, e.clientY)
+    if (focused) {
+      if (!hit?.closest(".frame.live")) unfocus()
+      return
+    }
+    const el = hit?.closest(".shield")?.closest(".frame")
+    if (el) focus(el.f)
+  })
+  board.addEventListener("contextmenu", (e) => e.preventDefault())
+  document.addEventListener("pointerdown", (e) => {
+    if (board.contains(e.target) || menuEl.contains(e.target)) return
+    closeMenu()
+    commitDraft() // the panel: e.g. Copy notes includes the note being typed
+  })
+
+  addEventListener("keydown", (e) => {
+    if (e.target.closest?.("input, textarea, select, [data-chrome]") && e.key !== "Escape") return
+    if (e.key === "Escape") escape()
+    else if (e.metaKey || e.ctrlKey || e.altKey) return
+    else if (e.key === "f") fitAll()
+    else if (e.key === "x" && hovered) toggleKill(hovered)
+  })
+
+  // ---------- manifest ----------
+  // Polled, so a new round the agent writes into wall.json shows up without a reload.
+  let manifestText = ""
+  async function loadManifest() {
+    let text
+    try {
+      const res = await fetch(MANIFEST, { cache: "no-store" })
+      if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
+      text = await res.text()
+    } catch (err) {
+      if (!variants.length) {
+        $("empty").hidden = false
+        $("empty").textContent = `Couldn't load ${MANIFEST} (${err.message}). Put it next to wall.html.`
+      }
+      return
+    }
+    if (text === manifestText) return
+    manifestText = text
+    let m
+    try { m = JSON.parse(text) } catch (err) {
+      $("empty").hidden = false
+      $("empty").textContent = `${MANIFEST} isn't valid JSON: ${err.message}`
+      return
+    }
+    const before = variants.map((v) => v.id).join()
+    variants = m.variants ?? []
+    title = m.title ?? "Wall"
+    document.title = title
+    $("wallTitle").textContent = title
+    $("wallTitle").title = title // truncates in the panel header
+    settings ??= {
+      ...structuredClone(DEFAULTS),
+      ...(m.sizes ? { sizes: m.sizes.filter((z) => z.on !== false).map(({ label, w, h }) => ({ label, w, h })) } : {}),
+      ...store.get("view", {}),
+      perLine: null,
+    }
+    syncPanel()
+    render()
+    if (variants.map((v) => v.id).join() !== before) fitAll()
+  }
+
+  syncCopy()
+  apply()
+  loadManifest()
+  setInterval(loadManifest, 1500)
+})()
+</script>
+</body>
+</html>

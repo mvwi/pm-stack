@@ -1,0 +1,69 @@
+{
+  "title": "Social feed",
+  "variants": [
+    {
+      "id": "feed",
+      "name": "Baseline",
+      "axis": "Three-column social feed",
+      "round": 1,
+      "url": "/?v=feed",
+      "file": "src/variants/feed.tsx"
+    },
+    {
+      "id": "focus",
+      "name": "Focus",
+      "axis": "One reading column, no chrome",
+      "round": 1,
+      "url": "/?v=focus",
+      "file": "src/variants/focus.tsx"
+    },
+    {
+      "id": "dense",
+      "name": "Dense",
+      "axis": "One row per post, scannable",
+      "round": 1,
+      "url": "/?v=dense",
+      "file": "src/variants/dense.tsx"
+    },
+    {
+      "id": "editorial",
+      "name": "Editorial",
+      "axis": "Front page, posts as headlines",
+      "round": 1,
+      "url": "/?v=editorial",
+      "file": "src/variants/editorial.tsx"
+    },
+    {
+      "id": "split",
+      "name": "Split",
+      "axis": "Inbox: list left, post right",
+      "round": 1,
+      "url": "/?v=split",
+      "file": "src/variants/split.tsx"
+    },
+    {
+      "id": "grid",
+      "name": "Grid",
+      "axis": "Media-first masonry",
+      "round": 1,
+      "url": "/?v=grid",
+      "file": "src/variants/grid.tsx"
+    },
+    {
+      "id": "terminal",
+      "name": "Terminal",
+      "axis": "Keyboard-first log, j/k/l",
+      "round": 1,
+      "url": "/?v=terminal",
+      "file": "src/variants/terminal.tsx"
+    },
+    {
+      "id": "chat",
+      "name": "Chat",
+      "axis": "Feed as one group chat",
+      "round": 1,
+      "url": "/?v=chat",
+      "file": "src/variants/chat.tsx"
+    }
+  ]
+}
