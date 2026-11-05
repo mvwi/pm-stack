@@ -43,7 +43,7 @@ Map what the variants stand on:
 - **Materials:** the project's colors, radii, spacing, fonts, easing and duration tokens, and existing components worth reusing.
 - **Personality:** playful consumer app or crisp tool? This bounds how far the boldest variant may go.
 - **Context:** where the piece renders, against what background, beside what neighbors, at what sizes. Those sizes go in the manifest.
-- **Baseline:** if the piece already exists, the current version is variant 1, unchanged, so every other variant is judged against something real.
+- **Baseline:** if the piece already exists, the current version is variant 1, unchanged, so every other variant is judged against something real. If it needs fake data sources or stores to render outside the app, build it in a subagent while you write the other variants.
 
 If design-quality skills are installed (typography, color, motion, accessibility and the like), load the ones this brief touches now, before writing variant code. Applying craft after building means editing every variant.
 
@@ -121,7 +121,13 @@ The wall is at `/wall/wall.html` on the dev server. If the dev server isn't runn
 
 ### Phase 6 — Verify and hand off
 
-Open the wall and check that every frame renders and the console is clean. Use a browser tool if you have one: screenshot the board and look at it. Then present one table and **stop. The choice belongs to the user.**
+Run the check from the project root:
+
+```sh
+node <this skill's folder>/verify.mjs http://localhost:<port>/wall/wall.html
+```
+
+It loads the wall headlessly, waits for every frame, and prints one line: the frame count, then either "all rendered, fonts loaded, console clean" or each problem with the frame it came from. It saves `wall-verify.png`; open it and look, because a frame can render cleanly and still look wrong. It needs the project's Playwright. Without it, do the same checks with a browser tool, and wait for the page's `load` event, not network idle: the wall polls `wall.json`, so the network never goes quiet. Then present one table and **stop. The choice belongs to the user.**
 
 | # | Variant | Axis | When it's the right choice | Its cost |
 | --- | --- | --- | --- | --- |
@@ -198,5 +204,6 @@ Sell each variant honestly: one line on when it wins, one on what it costs. Neve
 
 - **Pins sit at a fixed spot in the frame.** If you scroll inside a live frame, pins don't follow the content.
 - **Section names come from the first heading inside a section**, so a sidebar holding several cards takes the first card's title. The innermost names are exact.
+- **Frames load two at a time.** An unbundled dev server like Vite serves every source file separately, and a dozen frames starting at once exhaust the browser. The wall starts the next frame once the previous one stops requesting files, so a big wall on a cold server can take a minute to fill.
 - **Live frames keep running.** A variant with a looping animation costs frames even when off screen. Past about 20 live frames (variants showing × sizes), panning can stutter on modest hardware. Hidden variants don't render, so hiding is the fix.
 - **Notes, removals and Display settings live in the browser's localStorage**, per wall URL. They don't sync between browsers, so Copy notes is the handoff.

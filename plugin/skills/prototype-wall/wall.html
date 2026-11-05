@@ -375,6 +375,46 @@
     return el
   }
 
+  // Frames load a few at a time. An unbundled dev server (Vite) serves each source file on its own,
+  // so a dozen frames starting together exhaust the browser's connections and some never render.
+  const LOAD_AT_ONCE = 2
+  const loadQueue = []
+  let loading = 0
+  function queueLoad(iframe, url) {
+    iframe.dataset.want = url
+    if (!loadQueue.includes(iframe)) loadQueue.push(iframe)
+    pumpLoads()
+  }
+  function pumpLoads() {
+    while (loading < LOAD_AT_ONCE && loadQueue.length) {
+      const iframe = loadQueue.shift()
+      if (!iframe.isConnected) continue
+      loading++
+      let done = false
+      const finish = () => { if (!done) { done = true; loading--; pumpLoads() } }
+      iframe.addEventListener("load", () => settle(iframe, finish), { once: true })
+      setTimeout(finish, 20000) // a frame that never settles can't stall the rest
+      iframe.src = iframe.dataset.want
+    }
+  }
+  // "load" fires before lazily imported code arrives, so wait until the frame stops requesting files.
+  // Counts new requests per tick and clears them, so the browser's 250-entry timing buffer never fills.
+  function settle(iframe, finish) {
+    let quiet = 0
+    const tick = () => {
+      let n
+      try {
+        const perf = iframe.contentWindow.performance
+        n = perf.getEntriesByType("resource").length
+        perf.clearResourceTimings()
+      } catch { return finish() } // cross-origin: no way to tell, so trust "load"
+      quiet = n === 0 ? quiet + 1 : 0
+      if (quiet >= 3) finish()
+      else setTimeout(tick, 250)
+    }
+    tick()
+  }
+
   // A live frame swallows its own keys and right-clicks, so listen inside it too (same-origin only).
   function hookFrame(el) {
     try {
@@ -400,7 +440,7 @@
     screen.style.height = `${f.h}px`
     if (iframe.width !== String(f.w)) iframe.width = f.w
     if (iframe.height !== String(f.h)) iframe.height = f.h
-    if (iframe.getAttribute("src") !== f.v.url) iframe.src = f.v.url
+    if (iframe.dataset.want !== f.v.url) queueLoad(iframe, f.v.url)
     iframe.title = `${f.v.name}, ${f.size}`
     const killed = f.v.id in kills
     el.classList.toggle("killed", killed)
