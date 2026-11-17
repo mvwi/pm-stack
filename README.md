@@ -40,6 +40,22 @@ Pitch an idea and a skeptical PM picks it apart. It asks a few hard questions at
 /pm-stack:rubber-duck let admins export audit logs as CSV
 ```
 
+### preflight
+
+Run a go/no-go before a release. It asks who the release is for (staff, beta, everyone, enterprise admins, API users, app store, pricing), checks first that you can undo it, then asks only the checks that audience needs. It looks in your project before asking, wants an owner and evidence for every answer, and ends with a GO, GO IF or NO-GO card.
+
+```
+/pm-stack:preflight saved filters to all customers Tuesday
+```
+
+### chief-of-staff
+
+Hand over a goal instead of a task. Your agent splits it into briefs for sub-agents, has each one send back a plan before starting, checks every claim they return against real proof, and only interrupts you for decisions that are yours. You get a status view to glance at and one hand-over at the end that says what was and wasn't checked.
+
+```
+/pm-stack:chief-of-staff ship the CSV export and the help article
+```
+
 ### subtract
 
 Point it at a busy screen and get a numbered list of what can go: text that repeats, copy that explains the system instead of helping the user, a button repeated on every row, badges nobody reads. You approve line by line. It never removes something a user can do; it moves it somewhere quieter.
