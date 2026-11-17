@@ -1,0 +1,78 @@
+/* Round 2 materials, after the mvwi style: cool paper, ink, one ultramarine accent, Martian Mono labels. */
+.mv {
+  --paper: #e4e5ea;
+  --ink: #15161b;
+  --acc: #2d2be6;
+  --on-acc: #f3f3ff;
+  --page: #f2f2f5;
+  --mute: #5e606c;
+  --rule: color-mix(in oklab, var(--ink) 35%, var(--paper));
+  --well: color-mix(in oklab, var(--ink) 8%, var(--paper));
+  background: var(--paper);
+  color: var(--ink);
+}
+/* Dark follows the OS unless the wall (or anything else) pins data-theme on the root. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .mv {
+    --paper: #191a20;
+    --ink: #dadbe3;
+    --acc: #8582ff;
+    --page: #0e0f13;
+    --mute: #9091a0;
+  }
+}
+:root[data-theme="dark"] .mv {
+  --paper: #191a20;
+  --ink: #dadbe3;
+  --acc: #8582ff;
+  --page: #0e0f13;
+  --mute: #9091a0;
+}
+/* Dark tile: reads as a screen. At most one per set. */
+.mv.mv-inv {
+  --paper: #15161b;
+  --ink: #dadbe3;
+  --acc: #8582ff;
+  --mute: #9091a0;
+}
+/* Accent ground: the loudest thing in the system. Once per set. */
+.mv .mv-acc {
+  --paper: var(--acc);
+  --ink: var(--on-acc);
+  --mute: color-mix(in oklab, var(--on-acc) 78%, var(--acc));
+  --rule: color-mix(in oklab, var(--on-acc) 45%, var(--acc));
+  background: var(--paper);
+  color: var(--ink);
+}
+.mv :focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+.mv .mv-acc :focus-visible {
+  outline-color: var(--on-acc);
+}
+.mono {
+  font-family: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+/* Tracked caps label: names on equipment. 11px is the UI floor, not the 8px of a graphic. */
+.cap {
+  font-family: "Martian Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+/* Image stand-in: horizontal line shading, never a gradient field. */
+.shade {
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--ink) 0 1px,
+    transparent 1px 5px
+  );
+  opacity: 0.35;
+}
+/* Buttons don't inherit text-transform by default, so a .cap parent would leave them lowercase.
+   :where() keeps this at element specificity, so a button's own .cap still wins. */
+:where(.mv) button {
+  text-transform: inherit;
+}

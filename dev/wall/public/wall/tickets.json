@@ -1,0 +1,60 @@
+{
+  "title": "Ticket training",
+  "variants": [
+    {
+      "id": "t-script",
+      "name": "Script",
+      "axis": "Whole checklist on screen, current step lit, handles on the UI",
+      "round": 1,
+      "url": "/?v=t-script",
+      "file": "src/tickets/script.tsx"
+    },
+    {
+      "id": "t-card",
+      "name": "Cue card",
+      "axis": "One big instruction at a time, leader line to the spot",
+      "round": 1,
+      "url": "/?v=t-card",
+      "file": "src/tickets/card.tsx"
+    },
+    {
+      "id": "t-spot",
+      "name": "Spotlight",
+      "axis": "The UI fades around the spot; the panel stays quiet",
+      "round": 1,
+      "url": "/?v=t-spot",
+      "file": "src/tickets/spot.tsx"
+    },
+    {
+      "id": "t-chat",
+      "name": "Trainer chat",
+      "axis": "Running chat log from the trainer; a pointer glides to the spot",
+      "round": 1,
+      "url": "/?v=t-chat",
+      "file": "src/tickets/chat.tsx"
+    },
+    {
+      "id": "t-walk",
+      "name": "Walkthrough",
+      "axis": "Lesson drawn as an mvwi step diagram with time bars",
+      "round": 1,
+      "url": "/?v=t-walk",
+      "file": "src/tickets/walk.tsx"
+    },
+    {
+      "id": "t-cues",
+      "name": "Cue sheet",
+      "axis": "Dark editor-style cue list with a live playhead",
+      "round": 1,
+      "url": "/?v=t-cues",
+      "file": "src/tickets/cues.tsx"
+    }
+  ],
+  "sizes": [
+    {
+      "label": "Video 1080p",
+      "w": 1920,
+      "h": 1080
+    }
+  ]
+}

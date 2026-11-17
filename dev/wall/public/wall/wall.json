@@ -2,68 +2,76 @@
   "title": "Social feed",
   "variants": [
     {
+      "id": "sheet",
+      "name": "Track sheet",
+      "axis": "Each post a labeled panel; accent marks new",
+      "round": 1,
+      "url": "/?v=sheet",
+      "file": "src/variants/sheet.tsx"
+    },
+    {
+      "id": "ledger",
+      "name": "Index",
+      "axis": "Swiss-grid printed index, numbers lead",
+      "round": 1,
+      "url": "/?v=ledger",
+      "file": "src/variants/ledger.tsx"
+    },
+    {
+      "id": "console",
+      "name": "Console",
+      "axis": "Dark keyboard console, list and detail",
+      "round": 1,
+      "url": "/?v=console",
+      "file": "src/variants/console.tsx"
+    },
+    {
+      "id": "timeline",
+      "name": "Timeline",
+      "axis": "Posts on a time rail, dot size is likes",
+      "round": 1,
+      "url": "/?v=timeline",
+      "file": "src/variants/timeline.tsx"
+    },
+    {
       "id": "feed",
       "name": "Baseline",
-      "axis": "Three-column social feed",
+      "axis": "The current three-column feed",
       "round": 1,
       "url": "/?v=feed",
       "file": "src/variants/feed.tsx"
     },
     {
-      "id": "focus",
-      "name": "Focus",
-      "axis": "One reading column, no chrome",
+      "id": "contact",
+      "name": "Contact sheet",
+      "axis": "Every post as a tile; open one to read",
       "round": 1,
-      "url": "/?v=focus",
-      "file": "src/variants/focus.tsx"
+      "url": "/?v=contact",
+      "file": "src/variants/contact.tsx"
     },
     {
-      "id": "dense",
-      "name": "Dense",
-      "axis": "One row per post, scannable",
+      "id": "single",
+      "name": "One at a time",
+      "axis": "One post per screen, paced like a deck",
       "round": 1,
-      "url": "/?v=dense",
-      "file": "src/variants/dense.tsx"
+      "url": "/?v=single",
+      "file": "src/variants/single.tsx"
     },
     {
-      "id": "editorial",
-      "name": "Editorial",
-      "axis": "Front page, posts as headlines",
+      "id": "mixer",
+      "name": "Mixer",
+      "axis": "Columns of saved filters, side by side",
       "round": 1,
-      "url": "/?v=editorial",
-      "file": "src/variants/editorial.tsx"
+      "url": "/?v=mixer",
+      "file": "src/variants/mixer.tsx"
     },
     {
-      "id": "split",
-      "name": "Split",
-      "axis": "Inbox: list left, post right",
+      "id": "digest",
+      "name": "Digest",
+      "axis": "The day batched into one short read",
       "round": 1,
-      "url": "/?v=split",
-      "file": "src/variants/split.tsx"
-    },
-    {
-      "id": "grid",
-      "name": "Grid",
-      "axis": "Media-first masonry",
-      "round": 1,
-      "url": "/?v=grid",
-      "file": "src/variants/grid.tsx"
-    },
-    {
-      "id": "terminal",
-      "name": "Terminal",
-      "axis": "Keyboard-first log, j/k/l",
-      "round": 1,
-      "url": "/?v=terminal",
-      "file": "src/variants/terminal.tsx"
-    },
-    {
-      "id": "chat",
-      "name": "Chat",
-      "axis": "Feed as one group chat",
-      "round": 1,
-      "url": "/?v=chat",
-      "file": "src/variants/chat.tsx"
+      "url": "/?v=digest",
+      "file": "src/variants/digest.tsx"
     }
   ]
 }

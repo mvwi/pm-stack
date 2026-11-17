@@ -24,8 +24,8 @@ export type Post = {
 
 export const posts: Post[] = [
   {
-    name: "Alexandria Ocasio-Fitzgerald-Montgomery III",
-    handle: "alexandria_ocasio_fitzgerald",
+    name: "Alexandria Okonkwo-Fitzgerald-Montgomery III",
+    handle: "alexandria_okonkwo_fitzgerald",
     time: "2m",
     text: "Shipping the new onboarding today. Took three rewrites, one week of arguing about a single button label, and a design review where we killed nine of ten directions in eleven minutes.",
     replies: 48,
@@ -82,8 +82,8 @@ export const posts: Post[] = [
     image: true,
   },
   {
-    name: "Product Hunt Daily Digest of Everything New",
-    handle: "phdaily",
+    name: "Launch Radar Daily Digest of Everything New",
+    handle: "launchradar",
     time: "8h",
     text: "Top launches today: a calendar that says no for you, a CRM with one field, and yet another AI notes app.",
     replies: 66,
@@ -104,15 +104,15 @@ export const posts: Post[] = [
 
 export const trends = [
   { topic: "Technology", name: "#DesignEngineering", posts: "18.2K" },
-  { topic: "Fashion", name: "Anna Wintour", posts: "52.9K" },
+  { topic: "Fashion", name: "Spring collections", posts: "52.9K" },
   { topic: "Business", name: "Q4 earnings", posts: "9,104" },
-  { topic: "Sports", name: "Champions League", posts: "211K" },
+  { topic: "Sports", name: "Cup final", posts: "211K" },
 ]
 
 export const follows = [
-  { name: "Grace Coddington", handle: "gracec" },
-  { name: "Figma Community Updates & Announcements", handle: "figmacommunity" },
-  { name: "Rauno", handle: "raunofreiberg" },
+  { name: "Grace Okafor", handle: "graceo" },
+  { name: "Canvas Community Updates & Announcements", handle: "canvascommunity" },
+  { name: "Rune", handle: "rune_builds" },
 ]
 
 export const fmt = (n: number) =>
