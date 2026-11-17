@@ -1,5 +1,5 @@
 ---
-name: prototype-wall
+name: wall
 description: "Explore a piece of UI by building many genuinely different variants and laying them out live on one pan-and-zoom board (a Figma-style wall), so the user can compare them at a glance, kill the weak ones, and leave pinned notes that copy back to the agent as precise, element-level feedback. Use when someone wants several versions of a screen or component, wants to see every option at once, wants to triage directions fast, or mentions a wall, contact sheet, mood board of variants, or killing weak options. Triggers on: wall, show me 8 versions, 10 variants, a few options, explore directions, lay them all out, all at once, contact sheet, side by side, triage directions, kill the weak ones, canvas of options, compare many designs."
 ---
 
@@ -9,7 +9,7 @@ A divergence harness. You take one piece of UI, build several genuinely differen
 
 The wall is for the exploring phase: a rough brief and a choice nobody has made. If the user already knows what they want, build that one thing.
 
-The user runs it from inside their own project and passes the brief as the argument: `/pm-stack:prototype-wall the empty state for the projects page`. With no argument, ask what to explore in one question.
+The user runs it from inside their own project and passes the brief as the argument, for example *the empty state for the projects page*. How they invoke it depends on their agent (in Claude Code: `/pm-stack:wall the empty state for the projects page`). With no brief, ask what to explore in one question.
 
 **Who reads what.** The user is often a product manager, not an engineer. Everything they see (the brief, the variant table, the controls, the decision) uses plain words: say "page" and "window size", not "route", "iframe", "origin" or "tokens". Keep the technical detail in your own work and in file paths.
 
@@ -69,6 +69,7 @@ Before showing anything, review each variant for the mistakes fast prototypes sh
 - text inputs under 16px on mobile, which make iOS Safari zoom
 - text that fails contrast, or truncates with no way to read the rest
 - console errors
+- dark styles keyed only to `prefers-color-scheme`: the wall's theme switch sets `.dark` and `data-theme` on each frame's root, so key dark styles to one of those as well
 
 **Completion criterion:** every variant's URL renders that variant alone with the same content as the others, passes the review above, and no production file imports any of them.
 
@@ -139,7 +140,7 @@ Close with the wall's full URL and this guide, as written:
 - **Try one:** double-click a variant to use it like the real thing. Esc, or double-click outside it, to go back.
 - **Comment:** right-click the exact spot and choose Add comment. Hover a pin to read it, click it to edit.
 - **Cut:** right-click → Hide variant, or hover and press `x`. Show hidden (in the Display panel) brings them back.
-- **Display panel:** layout, window sizes (+ Add size for phone, tablet and so on), and a dark or light board.
+- **Display panel:** layout, window sizes (+ Add size for phone, tablet and so on), a dark or light board, and a light or dark theme for the variants themselves.
 - **Send feedback:** Copy notes, at the bottom of the panel, then paste here.
 
 **Completion criterion:** every frame renders at every size, the console is clean, and the table names each variant's cost honestly.

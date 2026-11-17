@@ -6,7 +6,7 @@
     {
       "name": "pm-stack",
       "source": "./plugin",
-      "description": "Claude Code skills for product managers: explore many live UI variants on one board, pin feedback on exact elements, and end with a written decision."
+      "description": "Claude Code skills for product managers: explore many live UI variants on one board, pin feedback on exact elements, end with a written decision, and pressure-test an idea before you build it."
     }
   ]
 }

@@ -191,6 +191,14 @@
         <button data-bg="dark"><span class="swatch" style="background: #141414"></span>Dark</button>
       </div>
     </div>
+    <div class="row">
+      <span>Variants</span>
+      <div class="seg" role="group" aria-label="Variant theme">
+        <button data-theme-pick="system">System</button>
+        <button data-theme-pick="light">Light</button>
+        <button data-theme-pick="dark">Dark</button>
+      </div>
+    </div>
     <label class="row"><span>Show hidden</span><input type="checkbox" class="switch" id="showHidden"></label>
   </div>
   <footer>
@@ -225,7 +233,7 @@
     { label: "Wide", w: 1920, h: 1080 },
   ]
   // perLine null = as square as possible (see perLine()); a slider choice lasts until reload.
-  const DEFAULTS = { perLine: null, hideKilled: true, background: "dark", sizes: [{ label: "Desktop", w: 1440, h: 900 }] }
+  const DEFAULTS = { perLine: null, hideKilled: true, background: "dark", theme: "system", sizes: [{ label: "Desktop", w: 1440, h: 900 }] }
 
   const $ = (id) => document.getElementById(id)
   const board = $("board"), world = $("world"), menuEl = $("menu"), panel = $("panel")
@@ -416,7 +424,26 @@
   }
 
   // A live frame swallows its own keys and right-clicks, so listen inside it too (same-origin only).
+  // Variant theme: the .dark class and data-theme on the frame's root carry it, so a project must theme by one
+  // of those (prefers-color-scheme inside a frame follows the OS, not the wall). color-scheme on the iframe only
+  // sets its backdrop and form controls. "System" undoes only what the wall set.
+  function themeFrame(iframe) {
+    const t = settings?.theme ?? "system"
+    iframe.style.colorScheme = t === "system" ? "" : t
+    try {
+      const root = iframe.contentDocument.documentElement
+      if (t === "system") {
+        if (root.dataset.wallTheme) { root.classList.remove("dark"); delete root.dataset.theme; delete root.dataset.wallTheme }
+        return
+      }
+      root.classList.toggle("dark", t === "dark")
+      root.dataset.theme = t
+      root.dataset.wallTheme = t
+    } catch {} // cross-origin: color-scheme alone has to do
+  }
+
   function hookFrame(el) {
+    themeFrame(el.parts.iframe)
     try {
       const win = el.parts.iframe.contentWindow
       win.addEventListener("keydown", (e) => e.key === "Escape" && escape())
@@ -441,6 +468,7 @@
     if (iframe.width !== String(f.w)) iframe.width = f.w
     if (iframe.height !== String(f.h)) iframe.height = f.h
     if (iframe.dataset.want !== f.v.url) queueLoad(iframe, f.v.url)
+    themeFrame(iframe)
     iframe.title = `${f.v.name}, ${f.size}`
     const killed = f.v.id in kills
     el.classList.toggle("killed", killed)
@@ -483,9 +511,11 @@
   function name(el, limit) {
     const tag = el.tagName.toLowerCase()
     const slot = el.getAttribute("data-slot")
-    const text = el.textContent?.replace(/\s+/g, " ").trim() ?? ""
+    // innerText, not textContent: it follows layout, so "CH.06" and "Mia Chen" in sibling spans don't run together.
+    const words = (n) => (n?.innerText ?? n?.textContent)?.replace(/\s+/g, " ").trim()
+    const text = words(el) ?? ""
     // Containers go by their heading ("Who to follow"); small elements by their own text.
-    const heading = el.querySelector("h1, h2, h3, h4, [data-slot$=title]")?.textContent?.trim()
+    const heading = words(el.querySelector("h1, h2, h3, h4, [data-slot$=title]"))
     const label = el.getAttribute("aria-label") ?? el.getAttribute("placeholder") ?? (text.length <= 120 ? text : heading ?? "")
     return `${tag}${slot && slot !== tag ? `[${slot}]` : ""}${label ? ` "${clip(label, limit)}"` : ""}`
   }
@@ -691,6 +721,7 @@
     $("showHidden").checked = !settings.hideKilled
     document.documentElement.dataset.board = settings.background
     for (const b of panel.querySelectorAll("[data-bg]")) b.setAttribute("aria-pressed", String(b.dataset.bg === settings.background))
+    for (const b of panel.querySelectorAll("[data-theme-pick]")) b.setAttribute("aria-pressed", String(b.dataset.themePick === (settings.theme ?? "system")))
     const sizes = settings.sizes
     $("sizes").replaceChildren(...sizes.map((z, i) => {
       const setSize = (p) => setSettings({ sizes: sizes.map((s, n) => (n === i ? { ...s, ...p } : s)) })
@@ -727,6 +758,7 @@
   })
   $("per").addEventListener("input", (e) => setSettings({ perLine: Number(e.target.value) }))
   for (const b of panel.querySelectorAll("[data-bg]")) b.addEventListener("click", () => setSettings({ background: b.dataset.bg }, false))
+  for (const b of panel.querySelectorAll("[data-theme-pick]")) b.addEventListener("click", () => setSettings({ theme: b.dataset.themePick }, false))
   $("showHidden").addEventListener("change", (e) => setSettings({ hideKilled: !e.target.checked }))
   // Reset all: display settings back to defaults and every hidden variant back on the board. Notes stay (Clear notes owns those).
   $("reset").addEventListener("click", () => {
