@@ -1,6 +1,6 @@
 {
   "name": "pm-stack",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "license": "MIT",
   "description": "Claude Code skills for product managers: explore many live UI variants on one board, pin feedback on exact elements, end with a written decision, pressure-test an idea, run a release go/no-go, hand a whole goal to sub-agents, cut clutter from a screen, and walk real people through a permissions or data model.",
   "author": { "name": "Michael Williams" },
